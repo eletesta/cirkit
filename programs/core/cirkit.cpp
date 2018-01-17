@@ -76,6 +76,7 @@
 #include <cli/commands/tt.hpp>
 #include <cli/commands/unate.hpp>
 #include <cli/commands/worstcase.hpp>
+#include <cli/commands/xmgmajdecomp.hpp>
 #include <cli/commands/xmgmerge.hpp>
 
 #include <core/utils/bdd_utils.hpp>
@@ -181,6 +182,7 @@ ALICE_BEGIN(cirkit)
   ADD_COMMAND( expr );
   ADD_COMMAND( output_noise );
   ADD_COMMAND( print_io );
+  ADD_COMMAND( xmg_majdecomp );
 
 #include <addon_defines.hpp>
 

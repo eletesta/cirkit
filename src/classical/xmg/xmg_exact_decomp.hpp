@@ -28,8 +28,6 @@
  * @file xmg_exact_decomp.hpp
  *
  * @brief Exact MAJ decomposition
- * 
- * inspired by implementation of ABC majexact (Alan Mishchenko)
  *
  * @author Mathias Soeken
  * @author Eleonora Testa
@@ -42,7 +40,9 @@
 #include <array>
 #include <chrono>
 #include <cstdint>
+#include <fstream>
 #include <iostream>
+#include <string>
 #include <vector>
 
 #include <boost/optional.hpp>
@@ -82,9 +82,20 @@ public:
   {
     abc::bmcg_sat_solver_stop( solver );
   }
-
-  bool run()
+  
+  void write_dimacs(std::string filename)
   {
+  	file.open(filename, std::ofstream::out); 
+	file << fmt::format( "P cnf {} {}",
+                       abc::bmcg_sat_solver_varnum( solver ),
+					   abc::bmcg_sat_solver_clausenum( solver ))
+		 << std::endl; 
+    file << str; 
+  }
+
+  bool run(std::string filename)
+  {
+	  
     if ( !add_main_cnf() )
     {
       return false;
@@ -120,6 +131,9 @@ public:
       }
     }
 
+    /* write dimacs file */
+	write_dimacs(filename);
+	
     /* solving time */
     const auto start = std::chrono::high_resolution_clock::now();
     const auto result = abc::bmcg_sat_solver_solve( solver, nullptr, 0 );
@@ -133,7 +147,8 @@ public:
     }
     return false;
   }
-
+  
+ 
   void print_statistics( std::ostream& os = std::cout )
   {
     os << fmt::format( "[i] vars = {}   cls = {}   learnt = {}   conf = {}   time = {:.2f}",
@@ -204,6 +219,27 @@ public:
   }
 
 private:
+  bool add_clause(abc::bmcg_sat_solver* solver, std::vector<int> lits, int size)
+  { 
+	  for (auto& l : lits)
+	  {
+		  auto divs = l/2; 
+		  if (l%2 == 0)
+			  //str << divs << " ";
+		      str += fmt::format( "{} ", divs); 
+		  else 
+			  str += fmt::format( "-{} ", divs);
+			  
+	  }
+	  str += "0\n"; 
+	  
+	  if (!abc::bmcg_sat_solver_addclause( solver, &lits[0], size))
+		  {
+			  return false; 
+		  }
+	  return true;  
+  } 
+  
   void add_structure_variables()
   {
     /* first gate is <x1x2x3> */
@@ -247,7 +283,7 @@ private:
           lits.push_back( abc::Abc_Var2Lit( select[i][k][j], 0 ) );
         }
 
-        if ( !abc::bmcg_sat_solver_addclause( solver, &lits[0], lits.size() ) )
+        if ( !add_clause( solver, lits, lits.size() ) )
         {
           return false;
         }
@@ -256,8 +292,8 @@ private:
         {
           for ( auto m = 0; m < l; ++m )
           {
-            int plits[] = {abc::Abc_LitNot( lits[m] ), abc::Abc_LitNot( lits[l] )};
-            if ( !abc::bmcg_sat_solver_addclause( solver, plits, 2 ) )
+            std::vector<int> plits = {abc::Abc_LitNot( lits[m] ), abc::Abc_LitNot( lits[l] )};
+            if ( !add_clause( solver, plits, 2 ) )
             {
               return false;
             }
@@ -276,8 +312,8 @@ private:
             if ( !select[i][k][l] || !select[i][k + 1][m] )
               continue;
 
-            int plits[] = {abc::Abc_Var2Lit( select[i][k][l], 1 ), abc::Abc_Var2Lit( select[i][k + 1][m], 1 )};
-            if ( !abc::bmcg_sat_solver_addclause( solver, plits, 2 ) )
+            std::vector<int> plits = {abc::Abc_Var2Lit( select[i][k][l], 1 ), abc::Abc_Var2Lit( select[i][k + 1][m], 1 )};
+            if ( !add_clause( solver, plits, 2 ) )
             {
               return false;
             }
@@ -297,9 +333,9 @@ private:
               if ( !select[i][0][n] || !select[i][1][m] || !select[i][2][l] || !select[ii][0][n] || !select[ii][1][m] || !select[ii][2][l] )
                 continue;
 
-              int plits[] = {abc::Abc_Var2Lit( select[i][0][n], 1 ), abc::Abc_Var2Lit( select[i][1][m], 1 ), abc::Abc_Var2Lit( select[i][2][l], 1 ),
+              std::vector<int> plits = {abc::Abc_Var2Lit( select[i][0][n], 1 ), abc::Abc_Var2Lit( select[i][1][m], 1 ), abc::Abc_Var2Lit( select[i][2][l], 1 ),
                              abc::Abc_Var2Lit( select[ii][0][n], 1 ), abc::Abc_Var2Lit( select[ii][1][m], 1 ), abc::Abc_Var2Lit( select[ii][2][l], 1 )};
-              if ( !abc::bmcg_sat_solver_addclause( solver, plits, 6 ) )
+              if ( !add_clause( solver, plits, 6 ) )
               {
                 return false;
               }
@@ -312,7 +348,7 @@ private:
     /* every gate needs to be used */
     for ( auto& lits : output_lits )
     {
-      if ( !abc::bmcg_sat_solver_addclause( solver, &lits[0], lits.size() ) )
+      if ( !add_clause( solver, lits, lits.size() ) )
       {
         return false;
       }
@@ -351,7 +387,7 @@ private:
           if ( j < NumVars ) /* node i'th k'th input should have value of PI j */
           {
             lits.push_back( abc::Abc_Var2Lit( base_var_i + k, assignment[j] ? 0 : 1 ) );
-            if ( !abc::bmcg_sat_solver_addclause( solver, &lits[0], lits.size() ) )
+            if ( !add_clause( solver, lits, lits.size() ) )
             {
               return false;
             }
@@ -361,13 +397,13 @@ private:
             const auto base_var_j = var_index + 4 * ( j - NumVars );
             lits.push_back( abc::Abc_Var2Lit( base_var_j + 3, 0 ) );
             lits.push_back( abc::Abc_Var2Lit( base_var_i + k, 1 ) );
-            if ( !abc::bmcg_sat_solver_addclause( solver, &lits[0], lits.size() ) )
+            if ( !add_clause( solver, lits, lits.size() ) )
             {
               return false;
             }
             lits[1] = abc::Abc_LitNot( lits[1] );
             lits[2] = abc::Abc_LitNot( lits[2] );
-            if ( !abc::bmcg_sat_solver_addclause( solver, &lits[0], lits.size() ) )
+            if ( !add_clause( solver, lits, lits.size() ) )
             {
               return false;
             }
@@ -384,7 +420,8 @@ private:
 
         for ( auto k = 0; k < 3; k++ )
         {
-          int pLits[3], nLits = 0;
+          std::vector<int> pLits(3); 
+		  int nLits = 0;
           if ( k != 0 )
           {
             pLits[nLits++] = abc::Abc_Var2Lit( base_var_i + 0, n );
@@ -402,7 +439,7 @@ private:
             pLits[nLits++] = abc::Abc_Var2Lit( base_var_i + 3, !n );
           }
           assert( nLits <= 3 );
-          if ( !abc::bmcg_sat_solver_addclause( solver, pLits, nLits ) )
+          if ( !add_clause( solver, pLits, nLits ) )
           {
             return false;
           }
@@ -413,16 +450,16 @@ private:
     /* special case for expected_value == 2 */
     if ( expected_value == 2 )
     {
-      int pLits[2];
+      std::vector<int> pLits(2); 
       pLits[0] = abc::Abc_Var2Lit( var_index + 4 * ( NumGates - 2 ) + 3, 0 );
       pLits[1] = abc::Abc_Var2Lit( var_index + 4 * ( NumGates - 1 ) + 3, 0 );
-      if ( !abc::bmcg_sat_solver_addclause( solver, pLits, 2 ) )
+      if ( !add_clause( solver, pLits, 2 ) )
       {
         return false;
       }
       pLits[0] = abc::Abc_LitNot( pLits[0] );
       pLits[1] = abc::Abc_LitNot( pLits[1] );
-      if ( !abc::bmcg_sat_solver_addclause( solver, pLits, 2 ) )
+      if ( !add_clause( solver, pLits, 2 ) )
       {
         return false;
       }
@@ -440,16 +477,19 @@ private:
   abc::bmcg_sat_solver* solver;
 
   int var_index = 1;
+  
+  std::ofstream file;
+  std::string str; 
 
   double solving_time = 0.0;
 };
 }
 
 template<uint32_t NumVars, uint32_t NumGates>
-boost::optional<xmg_graph> xmg_exact_decomposition()
+boost::optional<xmg_graph> xmg_exact_decomposition (std::string filename)
 {
   detail::xmg_exact_decomposition_impl<NumVars, NumGates> impl;
-  const auto result = impl.run();
+  const auto result = impl.run(filename);
   impl.print_statistics();
   if ( result )
   {
