@@ -134,6 +134,7 @@ aig_function aig_get_constant( aig_graph& aig, bool value );
 bool aig_is_constant_used( const aig_graph& aig );
 aig_function aig_create_pi( aig_graph& aig, const std::string& name );
 void aig_create_po( aig_graph& aig, const aig_function& f, const std::string& name );
+void aig_remove_po( aig_graph& aig );
 aig_function aig_create_ci( aig_graph& aig, const std::string& name );
 void aig_create_co( aig_graph& aig, const aig_function& f );
 aig_function aig_create_and( aig_graph& aig, const aig_function& left, const aig_function& right );

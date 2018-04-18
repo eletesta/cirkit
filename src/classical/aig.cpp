@@ -230,6 +230,12 @@ void aig_create_po( aig_graph& aig, const aig_function& f, const std::string& na
   boost::get_property( aig, boost::graph_name ).outputs += std::make_pair( f, name );
 }
 
+void aig_remove_po( aig_graph& aig )
+{
+ // assert( num_vertices( aig ) != 0u && "Uninitialized AIG" );
+  boost::get_property( aig, boost::graph_name ).outputs.clear(); 
+}
+
 aig_function aig_create_ci( aig_graph& aig, const std::string& name )
 {
   assert( num_vertices( aig ) != 0u && "Uninitialized AIG" );
